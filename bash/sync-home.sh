@@ -5,12 +5,14 @@
 set -euo pipefail
 
 # Status with which to exit if we reach the end of the script
-EXIT_STATUS=0
+exit_status=0
 
-SCRIPT_NAME=$(basename "$0")
+readonly SCRIPT_NAME=$(basename "$0")
+
+readonly USAGE="$SCRIPT_NAME [(-h|--help)] [(--dry-run|--interactive)]"
 
 function log {
-    echo "[$SCRIPT_NAME] [$1] - $2" >&2
+    echo "[$SCRIPT_NAME] [$(date +'%Y-%m-%dT%H:%M:%S%z')] [$1] - $2" >&2
 }
 
 if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) )) ; then
@@ -19,13 +21,17 @@ if (( BASH_VERSINFO[0] < 4 || (BASH_VERSINFO[0] == 4 && BASH_VERSINFO[1] < 4) ))
     exit 1
 fi
 
-RCLONE_OPTIONS=()
+rclone_options=()
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --dry-run|--interactive)
-            RCLONE_OPTIONS+=("$1")
+            rclone_options+=("$1")
             shift
+            ;;
+        -h|--help)
+            echo "usage: $USAGE"
+            exit 0
             ;;
         --)
             shift
@@ -33,31 +39,33 @@ while [[ $# -gt 0 ]]; do
             ;;
         -*)
             log "error" "unknown option: $1"
+            log "error" "usage: $USAGE"
             exit 1
             ;;
         *)
             log "error" "unexpected positional argument: $1"
+            log "error" "usage: $USAGE"
             exit 1
             ;;
     esac
 done
 
-if ! RCLONE_BIN_PATH="$(command -v rclone)" ; then
+if ! rclone_bin_path="$(command -v rclone)" ; then
     log "error" "rclone not available"
     exit 1
 fi
 
-log "info" "using rclone at '$RCLONE_BIN_PATH' ($($RCLONE_BIN_PATH version | head -n 1))"
+log "info" "using rclone at '$rclone_bin_path' ($("$rclone_bin_path" version | head -n 1))"
 
-log "info" "using rclone options: ${RCLONE_OPTIONS[*]}"
+log "info" "using rclone options: ${rclone_options[*]}"
 
 
-DRIVE_ENDPOINT="gdrive-archivos:Laptop Home"
+drive_endpoint="gdrive-archivos:Laptop Home"
 
 function sync_no_filter {
     echo
     log "info" "syncing $1..."
-    "$RCLONE_BIN_PATH" sync "${RCLONE_OPTIONS[@]}" "$HOME/$1" "$DRIVE_ENDPOINT/$1"
+    "$rclone_bin_path" sync "${rclone_options[@]}" "$HOME/$1" "$drive_endpoint/$1"
 }
 
 sync_no_filter "Documents"
@@ -67,11 +75,11 @@ sync_no_filter "Music"
 echo
 log "info" "starting syncs with filters..."
 
-FILTER_FILES_DIR="${XDG_CONFIG_HOME:-$HOME/.config}/rclone/filters"
-GENERAL_FILTER_FILE="$FILTER_FILES_DIR/general-filter-file.txt"
+filter_files_dir="${XDG_CONFIG_HOME:-$HOME/.config}/rclone/filters"
+general_filter_file="$filter_files_dir/general-filter-file.txt"
 
-if [ ! -f "$GENERAL_FILTER_FILE" ] ; then
-    log "error" "could not find file '$GENERAL_FILTER_FILE'"
+if [ ! -f "$general_filter_file" ] ; then
+    log "error" "could not find file '$general_filter_file'"
     log "error" "skipping all syncs with filters"
     exit 1
 fi
@@ -79,27 +87,27 @@ fi
 function sync_with_filter {
     echo
     log "info" "syncing $1..."
-    log "info" "using filter file: '$GENERAL_FILTER_FILE'"
-    local filter_file_args=("--filter-from=$GENERAL_FILTER_FILE")
+    log "info" "using filter file: '$general_filter_file'"
+    local filter_file_args=("--filter-from=$general_filter_file")
     for filter_file in "${@:2}"; do
         log "info" "using filter file: '$filter_file'"
         if [ ! -f "$filter_file" ]; then
             log "error" "could not find file '$filter_file'"
             log "error" "skipping syncing $1"
-            EXIT_STATUS=1
+            exit_status=1
             return 0
         fi
         filter_file_args+=("--filter-from=$filter_file")
     done
-    "$RCLONE_BIN_PATH" sync "${RCLONE_OPTIONS[@]}" --copy-links "${filter_file_args[@]}" "$HOME/$1" "$DRIVE_ENDPOINT/$1"
+    "$rclone_bin_path" sync "${rclone_options[@]}" --copy-links "${filter_file_args[@]}" "$HOME/$1" "$drive_endpoint/$1"
 }
 
 sync_with_filter "coding"
-sync_with_filter "courses" "$FILTER_FILES_DIR/courses-filter-file.txt"
+sync_with_filter "courses" "$filter_files_dir/courses-filter-file.txt"
 
-if [ "$EXIT_STATUS" -ne 0 ] ; then
+if [ "$exit_status" -ne 0 ] ; then
     log "info" "done, but found some errors"
-    exit "$EXIT_STATUS"
+    exit "$exit_status"
 fi
 
 log "info" "done"
