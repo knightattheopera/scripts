@@ -1,11 +1,11 @@
 # Scripts
 
-A collection of useful scripts I've written.
+A collection of personal scripts.
 
 ## Usage
 
-You can run the scripts by addressing them by their full path,
-but you can also add the following lines to your `~/.bashrc`.
+The scripts can be executed addressing them by their path,
+but it might also be useful to add the following lines to `~/.bashrc`.
 
 ```bash ~/.bashrc
 SCRIPTS_BASE_DIR="/path/to/this/repo"
